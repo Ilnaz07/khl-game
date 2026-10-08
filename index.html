@@ -610,6 +610,7 @@
   .pr-record .ic{font-size:28px;} .pr-record .tx{display:flex; flex-direction:column;} .pr-record small{font-size:11px; color:#d9bf7a; letter-spacing:.08em; text-transform:uppercase;} .pr-record b{font-size:24px; font-weight:900; color:#ffd75a; line-height:1.1;}
   body.light .pr-record{background:linear-gradient(100deg,#fff8e2,#fff); border-color:rgba(230,160,20,.7);} body.light .pr-record small{color:#8a6a10;} body.light .pr-record b{color:#b87900;}
   .hud-best{text-align:center; font-size:12px; font-weight:700; color:#ffd75a; margin:-4px 0 2px; letter-spacing:.04em;}
+.lb-ava{width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex:none}
 </style>
 </head>
 <body class="on-teams" data-tab="menu">
@@ -620,6 +621,12 @@
     <div id="dailyInfo" style="font-size:13px; color:var(--muted); margin-bottom:10px;"></div>
     <div id="dailyGrid" class="daily-grid"></div>
     <button class="btn" id="dailyClaim" style="margin-top:12px;">Забрать</button>
+  </div>
+</div>
+<div class="rules-overlay" id="lbProfOverlay">
+  <div class="rules-card" style="text-align:center;">
+    <div id="lbProfBody"></div>
+    <button class="btn" id="lbProfClose" style="margin-top:12px;">Закрыть</button>
   </div>
 </div>
 <div class="rules-overlay" id="avatarOverlay">
@@ -2653,6 +2660,7 @@
       telegram_id: identity.telegramId,
       nickname: identity.nick,
       team_id: state.team ? state.team.id : null,
+      avatar: (getAvatarTeam() || {}).id || null,
       best_score: wallet.bestScore,
       stars: wallet.stars,
       total_coins: wallet.coins,
@@ -2668,28 +2676,49 @@
     }
     listEl.innerHTML = '<p class="hint">Загрузка…</p>';
     // Сортировка: сначала по звёздам, при равенстве — по лучшему счёту.
-    fetch(SUPABASE_URL + '/rest/v1/players?select=nickname,team_id,best_score,stars,telegram_id&order=stars.desc,best_score.desc&limit=50', {
+    fetch(SUPABASE_URL + '/rest/v1/players?select=nickname,team_id,avatar,best_score,stars,total_coins,telegram_id&order=stars.desc,best_score.desc&limit=50', {
       headers: sbHeaders()
     }).then(function(r){ return r.json(); }).then(function(rows){
       if (!rows || !rows.length){ listEl.innerHTML = '<p class="hint">Пока никто не сыграл. Будь первым!</p>'; return; }
       listEl.innerHTML = '';
       rows.forEach(function(row, idx){
         var teamObj = TEAMS.filter(function(t){ return t.id===row.team_id; })[0];
+        var avaObj = row.avatar ? teamById(row.avatar) : null;
         var isMe = identity && String(row.telegram_id)===String(identity.telegramId);
         var div = document.createElement('div');
         div.className = 'lb-row' + (isMe ? ' me' : '');
         div.innerHTML =
           '<div class="lb-rank">'+(idx+1)+'</div>' +
-          (teamObj ? teamBadgeSvg(teamObj, 28) : '') +
+          '<div class="lb-ava">' + (avaObj ? teamBadgeSvg(avaObj, 28) : '<svg viewBox="0 0 48 48" width="28" height="28"><circle cx="24" cy="17" r="9" fill="#5a6a92"/><path d="M6 48c0-11 7-17 18-17s18 6 18 17z" fill="#5a6a92"/></svg>') + '</div>' +
           '<div><div class="lb-nick">'+escapeHtml(row.nickname)+'</div>' +
-          '<div class="lb-team">⭐'+(row.stars||0)+' · '+(teamObj?teamObj.name:'—')+'</div></div>' +
+          '<div class="lb-team">⭐'+(row.stars||0)+'</div></div>' +
           '<div class="lb-score" style="margin-left:auto;">'+row.best_score+'</div>';
+        div.style.cursor = 'pointer';
+        div.addEventListener('click', function(){ openLbProfile(row, idx + 1); });
         listEl.appendChild(div);
       });
     }).catch(function(){
       listEl.innerHTML = '<p class="hint">Не удалось загрузить таблицу лидеров. Проверь интернет-соединение.</p>';
     });
   }
+  function openLbProfile(row, place){
+    var av = row.avatar ? teamById(row.avatar) : null, tm = row.team_id ? teamById(row.team_id) : null;
+    var ava = av ? teamBadgeSvg(av, 46) : '<svg class="sil" viewBox="0 0 48 48"><circle cx="24" cy="17" r="9" fill="#5a6a92"/><path d="M6 48c0-11 7-17 18-17s18 6 18 17z" fill="#5a6a92"/></svg>';
+    document.getElementById('lbProfBody').innerHTML =
+      '<div class="pr">' +
+        '<div class="pf-ava pr-ava"><div class="clip">' + ava + '</div>' + (place <= 3 ? '<svg class="pf-crown" viewBox="0 0 30 22"><path d="M2 20 L1 6 L9 12 L15 2 L21 12 L29 6 L28 20 Z" fill="#ffc94a" stroke="#b5800f" stroke-width="1.2" stroke-linejoin="round"/></svg>' : '') + '</div>' +
+        '<div class="pf-nick pr-nick">' + escapeHtml(row.nickname) + '</div>' +
+        '<div class="pr-cap" style="margin-top:2px;">Место в рейтинге: ' + place + '</div>' +
+        '<div class="pr-stats" style="grid-template-columns:repeat(2,1fr);">' +
+          '<div class="pr-stat"><div class="v">' + PUCK + (row.total_coins || 0) + '</div><div class="l">ШАЙБЫ</div></div>' +
+          '<div class="pr-stat"><div class="v"><span style="color:#ffd24a">★</span>' + (row.stars || 0) + '</div><div class="l">ЗВЁЗДЫ</div></div>' +
+        '</div>' +
+        '<div class="pr-record"><span class="ic">🏆</span><span class="tx"><small>Личный рекорд</small><b>' + (row.best_score || 0) + '</b></span></div>' +
+        (tm ? '<div class="pr-fav" style="cursor:default;"><span class="ic">' + teamBadgeSvg(tm, 40) + '</span><span class="tx"><b>Играет за</b><small>' + escapeHtml(tm.name) + '</small></span></div>' : '') +
+      '</div>';
+    document.getElementById('lbProfOverlay').classList.add('show');
+  }
+  document.getElementById('lbProfClose').addEventListener('click', function(){ document.getElementById('lbProfOverlay').classList.remove('show'); });
   function escapeHtml(s){
     var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML;
   }
