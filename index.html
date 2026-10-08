@@ -516,7 +516,7 @@
   .bnav button .ic{font-size:19px; line-height:1;}
   .bnav button:active{transform:scale(.94);}
   body[data-scr="teams"][data-tab="profile"] #nv-profile, body[data-scr="teams"][data-tab="teams"] #nv-teams, body[data-scr="teams"][data-tab="menu"] #nv-menu{color:#fff; background:rgba(60,130,255,.28); box-shadow:0 0 12px rgba(60,130,255,.35);}
-  body[data-scr="teams"]:not([data-tab="menu"]) .wrap > h1, body[data-scr="teams"]:not([data-tab="menu"]) .wrap > .subtitle, body[data-scr="players"] .wrap > h1, body[data-scr="players"] .wrap > .subtitle, body[data-scr="leaderboard"] .wrap > h1, body[data-scr="leaderboard"] .wrap > .subtitle, body[data-scr="ach"] .wrap > h1, body[data-scr="ach"] .wrap > .subtitle{display:none;}
+  body[data-scr="teams"]:not([data-tab="menu"]) .wrap > h1, body[data-scr="teams"]:not([data-tab="menu"]) .wrap > .subtitle, body[data-scr="players"] .wrap > h1, body[data-scr="players"] .wrap > .subtitle, body[data-scr="leaderboard"] .wrap > h1, body[data-scr="leaderboard"] .wrap > .subtitle, body[data-scr="ach"] .wrap > h1, body[data-scr="ach"] .wrap > .subtitle, body[data-scr="game"] .wrap > h1, body[data-scr="game"] .wrap > .subtitle{display:none;}
   body[data-scr="teams"]:not([data-tab="profile"]) #screen-teams .menu-bar{display:none;}
   body[data-scr="teams"]:not([data-tab="teams"]) #screen-teams .conf-tabs, body[data-scr="teams"]:not([data-tab="teams"]) #screen-teams .team-grid, body[data-scr="teams"]:not([data-tab="teams"]) #screen-teams > .hint{display:none;}
   body[data-scr="teams"]:not([data-tab="menu"]) #homePane{display:none;}
@@ -2964,6 +2964,15 @@
   function fit3d(){
     var displayWidth = canvasWrap.clientWidth || 360;
     var displayHeight = Math.round(displayWidth * (560/360));
+    // вписываем игровое поле в высоту экрана, чтобы кнопки управления всегда были видны без прокрутки
+    try{
+      var vh = (typeof tg !== 'undefined' && tg && tg.viewportStableHeight) ? tg.viewportStableHeight : window.innerHeight;
+      var topY = canvasWrap.getBoundingClientRect().top + (window.pageYOffset || 0);
+      var ctrlEl = document.querySelector('#screen-game .controls'), hintEl = document.getElementById('phaseHint');
+      var below = (ctrlEl ? ctrlEl.offsetHeight : 56) + (hintEl && hintEl.offsetHeight ? hintEl.offsetHeight + 10 : 0) + 20 + 22;
+      var avail = Math.floor(vh - topY - below);
+      if (avail > 0) displayHeight = Math.max(240, Math.min(displayHeight, avail));
+    }catch(e){}
     canvasWrap.style.height = displayHeight + 'px';
     if (renderer){
       renderer.setSize(displayWidth, displayHeight, true);
@@ -2972,6 +2981,7 @@
     }
   }
   window.addEventListener('resize', fit3d);
+  try{ if (typeof tg !== 'undefined' && tg && tg.onEvent) tg.onEvent('viewportChanged', fit3d); }catch(e){}
 
   function makeJerseyTexture(number, surnameEn, kit){
     var cv = document.createElement('canvas');
