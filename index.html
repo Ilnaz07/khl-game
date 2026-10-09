@@ -2793,8 +2793,8 @@
       return;
     }
     listEl.innerHTML = '<p class="hint">Загрузка…</p>';
-    // Сортировка: сначала по звёздам, при равенстве — по лучшему счёту.
-    fetch(SUPABASE_URL + '/rest/v1/players?select=nickname,team_id,avatar,best_score,stars,total_coins,telegram_id&order=stars.desc,best_score.desc&limit=50', {
+    // Сортировка: сначала по личному рекорду, при равенстве — по звёздам.
+    fetch(SUPABASE_URL + '/rest/v1/players?select=nickname,team_id,avatar,best_score,stars,total_coins,telegram_id&order=best_score.desc,stars.desc&limit=50', {
       headers: sbHeaders()
     }).then(function(r){ return r.json(); }).then(function(rows){
       if (!rows || !rows.length){ listEl.innerHTML = '<p class="hint">Пока никто не сыграл. Будь первым!</p>'; return; }
