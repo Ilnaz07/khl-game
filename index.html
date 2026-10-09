@@ -4285,7 +4285,7 @@
     },
 
     spawnRow:function(){
-      var blockCount = Math.min(2, 1 + Math.floor(this.level/3));
+      var blockCount = Math.min(2, 1 + Math.floor(this.level/6));
       var lanes = [0,1,2];
       for (var i=lanes.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=lanes[i]; lanes[i]=lanes[j]; lanes[j]=t; }
       // соперников стараемся не ставить туда, где на этой же линии уже лежит клюшка
@@ -4460,10 +4460,10 @@
         // дорога бесконечная — сложность растёт со временем вместо буллита
         if (this.dodged >= this.dodgeTarget){
           this.dodged = 0; this.level += 1;
-          this.dodgeTarget = 8 + this.level*2;
-          this.spawnInterval = Math.max(30, 74 - this.level*3.5);
-          this.stickInterval = Math.max(70, 150 - this.level*6);
-          this.speed3d = Math.min(0.4, 0.15 + this.level*0.013);
+          this.dodgeTarget = 10 + this.level*3;
+          this.spawnInterval = Math.max(44, 74 - this.level*2.2);
+          this.stickInterval = Math.max(90, 150 - this.level*4);
+          this.speed3d = Math.min(0.3, 0.15 + this.level*0.008);
         }
 
         if (!this.recordAnnounced && wallet.bestScore>0 && this.score > wallet.bestScore){
