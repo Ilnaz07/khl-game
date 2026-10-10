@@ -2053,6 +2053,12 @@
   function trKeys(n){ return n + (n === 1 ? ' key' : ' keys'); }
   var I18N_PATTERNS = [
     [/^📣 Бросить вызов друзьям$/, function(){ return '📣 Challenge friends'; }],
+    [/^🔔 Напоминания$/, function(){ return '🔔 Reminders'; }],
+    [/^🔔 Напоминания включены$/, function(){ return '🔔 Reminders on'; }],
+    [/^🔕 Напоминания выключены$/, function(){ return '🔕 Reminders off'; }],
+    [/^Не получилось — попробуй позже$/, function(){ return 'Something went wrong — try again later'; }],
+    [/^Напоминания работают только внутри Telegram$/, function(){ return 'Reminders only work inside Telegram'; }],
+    [/^Без разрешения бот не сможет напомнить$/, function(){ return 'The bot can\'t remind you without permission'; }],
     [/^🔑 \+(\d+) — подарок от друга, который тебя пригласил!$/, function(m){ return '🔑 +' + m[1] + ' — a gift from the friend who invited you!'; }],
     [/^🔑 \+(\d+) — друг по твоей ссылке сыграл!$/, function(m){ return '🔑 +' + m[1] + ' — a friend you invited has played!'; }],
     [/^🎉 (\d+) друзей в игре! Бонус 🔑 \+(\d+)$/, function(m){ return '🎉 ' + m[1] + ' friends in the game! Bonus 🔑 +' + m[2]; }],
@@ -2657,7 +2663,45 @@
     saveWallet(wallet);
     toast('🔑 +' + st.day + ' — ежедневный бонус');
     renderWhoAmI(); haptic('goal');
+    setTimeout(askNotify, 1800);
   });
+
+  // ---------- НАПОМИНАНИЯ ОТ БОТА ----------
+  // Состояние: 'on' — включены, 'off' — выключены или игрок отказался, пусто — ещё не спрашивали.
+  var NOTIFY_KEY = 'khl_prorv_notify_v1';
+  function notifyState(){ try{ return localStorage.getItem(NOTIFY_KEY) || ''; }catch(e){ return ''; } }
+  function canNotify(){ return SUPABASE_READY && tg && tg.initData; }
+  function sendNotify(on, cb){
+    fetch(SUPABASE_URL + '/functions/v1/notify-optin', {
+      method: 'POST', headers: sbHeaders({'Content-Type': 'application/json'}), body: JSON.stringify({initData: tg.initData, enabled: on})
+    }).then(function(r){ return r.json(); }).then(function(d){
+      var ok = d && d.enabled === on;
+      if (ok){ try{ localStorage.setItem(NOTIFY_KEY, on ? 'on' : 'off'); }catch(e){} }
+      toast(ok ? (on ? '🔔 Напоминания включены' : '🔕 Напоминания выключены') : 'Не получилось — попробуй позже');
+      if (cb) cb();
+    }).catch(function(){ toast('Не получилось — попробуй позже'); if (cb) cb(); });
+  }
+  function setNotify(on, cb){
+    if (!canNotify()){ toast('Напоминания работают только внутри Telegram'); return; }
+    if (!on){ sendNotify(false, cb); return; }
+    // боту нужно разрешение писать игроку — Telegram сам покажет системный запрос
+    if (tg.requestWriteAccess && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')){
+      tg.requestWriteAccess(function(allowed){
+        if (allowed) sendNotify(true, cb);
+        else { try{ localStorage.setItem(NOTIFY_KEY, 'off'); }catch(e){} toast('Без разрешения бот не сможет напомнить'); if (cb) cb(); }
+      });
+    } else sendNotify(true, cb);
+  }
+  function askNotify(){
+    if (!canNotify() || notifyState() || !tg.showConfirm) return;
+    var q = LANG === 'en'
+      ? '🔔 Remind you about tomorrow\'s bonus? The bot will send at most one message a day.'
+      : '🔔 Напомнить завтра о бонусе? Бот пришлёт не больше одного сообщения в день.';
+    tg.showConfirm(q, function(yes){
+      if (yes) setNotify(true);
+      else { try{ localStorage.setItem(NOTIFY_KEY, 'off'); }catch(e){} }
+    });
+  }
 
   function renderWhoAmI(){
     var el = document.getElementById('whoAmI');
@@ -2723,6 +2767,7 @@
       '<div class="theme-seg"><button id="lgRu" class="' + (LANG==='ru' ? 'on' : '') + '">Русский</button><button id="lgEn" class="' + (LANG==='en' ? 'on' : '') + '">English</button></div>' +
       '<div class="theme-seg"><button id="thDark" class="' + (getTheme()==='dark' ? 'on' : '') + '">🌙 Тёмная</button><button id="thLight" class="' + (getTheme()==='light' ? 'on' : '') + '">☀️ Светлая</button></div>' +
       '<button class="set-row" id="setHap"><span>📳 Вибрация</span><span class="sw ' + (hapticOn() ? 'on' : '') + '">' + (hapticOn() ? 'ВКЛ' : 'ВЫКЛ') + '</span></button>' +
+      '<button class="set-row" id="setNotify"><span>🔔 Напоминания</span><span class="sw ' + (notifyState() === 'on' ? 'on' : '') + '">' + (notifyState() === 'on' ? 'ВКЛ' : 'ВЫКЛ') + '</span></button>' +
       '<button class="set-row danger" id="setReset"><span>🗑 Сбросить прогресс</span><span id="setResetTx">›</span></button>' +
       '<div class="set-ver">КХЛ: Прорыв · v2.1</div>';
     document.getElementById('lgRu').addEventListener('click', function(){ if (LANG==='ru') return; try{ localStorage.setItem(LANG_KEY,'ru'); }catch(e){} location.reload(); });
@@ -2732,6 +2777,9 @@
     document.getElementById('setHap').addEventListener('click', function(){
       try{ localStorage.setItem('khl_prorv_haptic_v1', hapticOn() ? '0' : '1'); }catch(e){}
       renderSettings();
+    });
+    document.getElementById('setNotify').addEventListener('click', function(){
+      setNotify(notifyState() !== 'on', renderSettings);
     });
     var armed = false, rb = document.getElementById('setReset'), rt = document.getElementById('setResetTx');
     rb.addEventListener('click', function(){
